@@ -3,7 +3,6 @@
 **EN605.617 GPU Programming — Course Project Proposal**
 
 **Author:** Daniel Kim
-**Date:** March 2026
 
 ---
 
