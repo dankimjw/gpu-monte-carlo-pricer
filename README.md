@@ -24,106 +24,18 @@ Green = in-the-money (above strike), Red = out-of-the-money (below strike)
 
 ## Supported Option Types
 
-```
-Payoff ($)                          Payoff ($)
-  │                                   │
-  │          ╱                    ─────┤ Fixed
-  │        ╱                          │
-  │      ╱                            │
-  ├────╱──────── S              ──────┼──────── S
-  │  K                                │  K
-  European Call                    Digital Call
+![Option Payoff Diagrams](output/payoff_diagrams.png)
 
-
-Payoff ($)                          Payoff ($)
-  │                                   │
-  │                                   │      Avg(S) > K
-  │          ╱                        │        ╱
-  │        ╱                          │      ╱
-  ├────╱──────── S              ├────╱──────── S
-  │  K                            │  K
-  European Put (mirror)            Asian Call
-  (via put-call parity)            (avg price path)
-
-
-Barrier Up-and-Out:  Path touches barrier B → option dies (payoff = 0)
-Barrier Down-and-Out: Path touches barrier B → option dies (payoff = 0)
-```
+- **European Call/Put** — Standard vanilla options with payoff at expiry
+- **Asian Call** — Payoff based on average price path (smoother than European)
+- **Digital Call** — Fixed payout if in-the-money at expiry
+- **Barrier Up/Down-and-Out** — Option knocked out if price touches barrier
 
 ---
 
 ## Architecture
 
-```
-┌─────────────────────────────────────────────────────────┐
-│                      CLI / Presets                       │
-│  --preset SPY/BTC/ETH    --type european/asian/barrier   │
-│  --jumps btc/crisis       --dashboard    --benchmark     │
-└───────────────────────────┬─────────────────────────────┘
-                            │
-                ┌───────────▼───────────┐
-                │     Host (CPU)        │
-                │  Parse args, allocate │
-                │  memory, launch       │
-                └───────────┬───────────┘
-                            │
-          ┌─────────────────┼─────────────────┐
-          ▼                 ▼                 ▼
-  ┌──────────────┐ ┌──────────────┐ ┌──────────────┐
-  │   Stream 0   │ │   Stream 1   │ │   Stream N   │
-  │              │ │              │ │              │
-  │ ┌──────────┐ │ │ ┌──────────┐ │ │ ┌──────────┐ │
-  │ │  cuRAND  │ │ │ │  cuRAND  │ │ │ │  cuRAND  │ │
-  │ │  Init    │ │ │ │  Init    │ │ │ │  Init    │ │
-  │ └────┬─────┘ │ │ └────┬─────┘ │ │ └────┬─────┘ │
-  │      ▼       │ │      ▼       │ │      ▼       │
-  │ ┌──────────┐ │ │ ┌──────────┐ │ │ ┌──────────┐ │
-  │ │MC Kernel │ │ │ │MC Kernel │ │ │ │MC Kernel │ │
-  │ │ GBM +    │ │ │ │ GBM +    │ │ │ │ GBM +    │ │
-  │ │ Payoff   │ │ │ │ Payoff   │ │ │ │ Payoff   │ │
-  │ └────┬─────┘ │ │ └────┬─────┘ │ │ └────┬─────┘ │
-  │      ▼       │ │      ▼       │ │      ▼       │
-  │ ┌──────────┐ │ │ ┌──────────┐ │ │ ┌──────────┐ │
-  │ │ Reduce   │ │ │ │ Reduce   │ │ │ │ Reduce   │ │
-  │ │(shared)  │ │ │ │(shared)  │ │ │ │(shared)  │ │
-  │ └──────────┘ │ │ └──────────┘ │ │ └──────────┘ │
-  └──────────────┘ └──────────────┘ └──────────────┘
-          │                 │                 │
-          └─────────────────┼─────────────────┘
-                            ▼
-              ┌──────────────────────────┐
-              │   Results & Validation   │
-              │  • MC Price ± Std Err    │
-              │  • Black-Scholes Check   │
-              │  • Greeks (Δ Γ ν Θ ρ)    │
-              │  • PPM Visualization     │
-              └──────────────────────────┘
-```
-
-### Memory Layout
-
-```
-┌─────────────────────────────────────────────┐
-│              Constant Memory                │
-│  Strike(K), Spot(S), Rate(r), Vol(σ), T     │
-│  Barrier level, Jump params                 │
-└─────────────────────────────────────────────┘
-
-┌─────────────────────────────────────────────┐
-│              Global Memory                  │
-│  cuRAND states  │  Payoff results  │  PPM   │
-└─────────────────────────────────────────────┘
-
-┌──────────────────────┐
-│    Shared Memory     │  Per-block partial
-│  [sum0][sum1]...[sN] │  sum reduction
-└──────────────────────┘
-
-┌──────────────────────┐
-│     Registers        │  Per-thread running
-│  price, accumulator  │  price path state
-└──────────────────────┘
-```
+![System Architecture](output/architecture.png)
 
 ---
 
@@ -181,6 +93,8 @@ make all
 ---
 
 ## Performance
+
+![Performance Benchmarks](output/benchmarks.png)
 
 ### CPU vs GPU Speedup
 
