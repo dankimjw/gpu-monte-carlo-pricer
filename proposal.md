@@ -63,8 +63,3 @@ I expect the following outcomes:
 | **Visualization** | Spaghetti path rendering to PPM, animation mode (frames as path count grows) |
 | **Final** | Asian option support, performance report, presentation video, code cleanup |
 
----
-
-## One-Minute Pitch
-
-I'm building a GPU-accelerated Monte Carlo option pricing engine in CUDA. Each CUDA thread simulates one random price path using cuRAND, and the option payoff is averaged across millions of paths to estimate the fair price. The engine also renders a "spaghetti plot" — thousands of simulated paths drawn as colored lines, green for in-the-money, red for out-of-the-money — so you can literally see the simulation. I'll use it as a testbed to benchmark all the memory types we've covered — constant memory for option parameters, shared memory for per-block reductions, registers for per-path state — plus CUDA streams for pricing multiple options concurrently, and Thrust for computing aggregate statistics and confidence intervals. My hypothesis is that the GPU version will be 100–500× faster than CPU, enabling real-time pricing of option portfolios. The MVP is a European call pricer with path visualization; the stretch goal is Asian option support and animated convergence.
