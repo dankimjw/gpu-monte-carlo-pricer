@@ -1,0 +1,9 @@
+# Build artifacts
+build/
+*.o
+
+# Binary
+mc_pricer
+
+# Output images (keep PNGs for showcase, ignore PPMs)
+output/*.ppm
