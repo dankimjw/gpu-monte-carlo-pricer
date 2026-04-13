@@ -1,13 +1,9 @@
-# EN605.617 — Course Project Proposal
+# GPU-Accelerated Monte Carlo Option Pricing Engine
+
+**EN605.617 GPU Programming — Course Project Proposal**
 
 **Author:** Daniel Kim
 **Date:** March 2026
-
----
-
-## Project Title
-
-**GPU-Accelerated Monte Carlo Option Pricing Engine**
 
 ---
 
