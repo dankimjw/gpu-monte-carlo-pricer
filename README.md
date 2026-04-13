@@ -1,46 +1,84 @@
-# EN605.617 - Final Project
+# GPU-Accelerated Monte Carlo Option Pricing Engine
 
-## Overview
+A CUDA-based Monte Carlo simulation engine for pricing financial options with GPU acceleration. Final project for EN605.617 GPU Programming (JHU).
 
-This folder contains the final course project for EN605.617 GPU Programming.
+## Features
 
----
+- **Option Types** — European, Asian, Barrier (Up/Down-and-Out), Digital (Call/Put)
+- **Monte Carlo Simulation** — Millions of price paths simulated in parallel on GPU
+- **Black-Scholes Validation** — Analytical pricing for European options to verify accuracy
+- **Greeks** — Delta, Gamma, Vega, Theta, Rho via bump-and-reprice
+- **Merton Jump-Diffusion** — Model crash/black swan events with configurable jump parameters
+- **CUDA Streams** — Concurrent portfolio pricing (8 options on 4 streams)
+- **GPU Visualization** — Spaghetti plots and payoff histograms rendered directly on GPU (PPM output)
+- **Interactive Dashboard** — ncurses-based real-time parameter adjustment with ASCII sparklines
+- **CPU Baseline** — Side-by-side comparison with single-threaded CPU implementation
+- **Benchmarking** — Block-size sweeps, path-count scaling, CPU vs GPU timing
 
-## Instructor Guidance
+## Requirements
 
-**Office Hours Recording:** [Zoom Link](https://wse.zoom.us/rec/share/z_b5ay4sVQDTar2oIuPWZnBGAcoUDpPxteI1XsY-pEyxlQis7wCI1Ib2zHBLVZ2t.ySdXaZJXKVHPdJ2G)
+- NVIDIA GPU (developed on RTX 3060 Ti, compute capability 8.6)
+- CUDA Toolkit 11.5+
+- GCC 11+
+- ncurses (for dashboard mode)
 
-### Key Points
+## Build & Run
 
-1. **Develop iteratively** — Choose an attainable MVP (minimum viable product). If/when you meet that goal, build out with new features/analysis. This way you'll have something demonstrable or worth analyzing earlier and won't be as stressed.
+```bash
+make all
+./mc_pricer --help
+```
 
-2. **Track hurdles** — If you don't meet your goal, keep notes on the hurdles you encountered. This is a learning experience, not professional output. Understanding why things didn't work out is part of the process, and conveying that in your final presentation helps other students as well.
+### Quick Examples
 
-3. **Pivot early if needed** — If you quickly (1–2 weeks after proposal) realize your goal is unattainable or you no longer want to pursue your proposal, contact the instructor about whether it makes sense to continue or not.
+```bash
+# European call with default params
+./mc_pricer
 
-4. **Pick a topic that interests you** — Choose something you'll be comfortable working on and presenting as part of the final output.
+# SPY preset
+./mc_pricer --preset SPY
 
----
+# BTC with jump-diffusion
+./mc_pricer --preset BTC --jumps btc
 
-## Course Project Gallery - Reference Examples
+# Asian option
+./mc_pricer --type asian
 
-The following are exemplary past course p rojects to use as references:
+# Interactive dashboard
+./mc_pricer --dashboard
 
-### Fall 2024
+# Benchmark mode
+./mc_pricer --benchmark
+```
 
-- **Sarka Holendova**
+## Project Structure
 
-### Spring 2025
+```
+├── src/
+│   ├── main.cu              # CLI parsing, entry point
+│   ├── monte_carlo.cu       # MC simulation kernels (European, Asian, Barrier, Digital)
+│   ├── reduction.cu         # Shared-memory parallel reduction
+│   ├── black_scholes.cu     # Analytical Black-Scholes pricing
+│   ├── greeks.cu            # Greeks via bump-and-reprice
+│   ├── streams.cu           # Multi-stream portfolio pricing
+│   ├── render_ppm.cu        # GPU spaghetti plot + histogram rendering
+│   ├── cpu_baseline.cpp     # CPU reference implementation
+│   └── dashboard.cu         # ncurses interactive dashboard
+├── include/
+│   └── option_params.h      # Option parameter structs, constants
+├── benchmark/
+│   └── run_benchmarks.sh    # Automated benchmark script
+├── output/                  # Sample output images and benchmark CSVs
+├── Makefile
+└── proposal.md
+```
 
-- **David Penn** - Advanced Sim
-  - YouTube video: [https://www.youtube.com/](https://www.youtube.com/) *(may need to have volume maxed)*
+## Performance
 
-### Fall 2026
+- ~467x speedup over CPU baseline
+- < 0.05% error vs Black-Scholes analytical price
+- Optimal block size: 256 threads (605 Mpaths/sec)
 
-- **Anwar Haidar** - Fractal Renderer
-  - GitHub project: [https://github.com/anwarhaidar/jhu-en-605-617-fractal-renderer](https://github.com/anwarhaidar/jhu-en-605-617-fractal-renderer)
-  - YouTube video: [https://youtu.be/nSteTBq1gIo](https://youtu.be/nSteTBq1gIo)
+## Author
 
-- **Myoungho Shin** - GPU Monitoring
-  - GitHub project: [https://github.com/kokokoharu/JHU-605_617-Final_Project](https://github.com/kokokoharu/JHU-605_617-Final_Project)
-  - YouTube video: [https://www.youtube.com/watch?v=tbVyPE551L8](https://www.youtube.com/watch?v=tbVyPE551L8)
+Daniel Kim — Johns Hopkins University, EN605.617 GPU Programming
