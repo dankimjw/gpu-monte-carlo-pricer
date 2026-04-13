@@ -7,3 +7,6 @@ mc_pricer
 
 # Output images (keep PNGs for showcase, ignore PPMs)
 output/*.ppm
+
+# Local working files (plans, test scripts, scratch)
+.local/
