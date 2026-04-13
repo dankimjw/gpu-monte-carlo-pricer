@@ -54,14 +54,14 @@ I expect the following outcomes:
 
 ## Development Plan (Iterative)
 
-| Phase | Milestone | Modules Covered |
-|-------|-----------|-----------------|
-| **MVP** | European call option pricing with cuRAND paths, CLI args, CPU baseline comparison | 0–3 (threads, global/constant memory, CLI), 7 (cuRAND) |
-| **Optimization** | Shared memory reductions, register tuning, block-size sweep benchmarks | 4–5 (shared memory, registers, benchmarking) |
-| **Streams** | Multi-option portfolio pricing with concurrent streams | 6 (CUDA streams) |
-| **Statistics** | Thrust-based aggregate stats, confidence intervals, convergence analysis | 8 (Thrust) |
-| **Visualization** | Spaghetti path rendering to PPM, animation mode (frames as path count grows) | 0–3 (threads, global memory) |
-| **Final** | Asian option support, performance report, presentation video, code cleanup | — |
+| Phase | Milestone |
+|-------|-----------|
+| **MVP** | European call option pricing with cuRAND paths, CLI args, CPU baseline comparison |
+| **Optimization** | Shared memory reductions, register tuning, block-size sweep benchmarks |
+| **Streams** | Multi-option portfolio pricing with concurrent streams |
+| **Statistics** | Thrust-based aggregate stats, confidence intervals, convergence analysis |
+| **Visualization** | Spaghetti path rendering to PPM, animation mode (frames as path count grows) |
+| **Final** | Asian option support, performance report, presentation video, code cleanup |
 
 ---
 
