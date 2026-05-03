@@ -2,8 +2,9 @@
 build/
 *.o
 
-# Binary
+# Binaries
 mc_pricer
+tests/run_tests
 
 # Output images (keep PNGs for showcase, ignore PPMs)
 output/*.ppm
