@@ -30,7 +30,126 @@ typedef struct {
     float kernel_ms;
     float total_ms;
     float throughput;
+    float delta;
+    float gamma;
+    float vega;
+    float theta;
+    float rho;
 } MCResult;
+
+/* Box drawing helpers for quadrants */
+static void draw_hline(int row, int col, int width, char c) {
+    for (int i = 0; i < width; i++) mvaddch(row, col + i, c);
+}
+
+static void draw_vline(int row, int col, int height, char c) {
+    for (int i = 0; i < height; i++) mvaddch(row + i, col, c);
+}
+
+static void draw_box(int row, int col, int width, int height, int color) {
+    attron(COLOR_PAIR(color));
+    /* Corners */
+    mvaddch(row, col, ACS_ULCORNER);
+    mvaddch(row, col + width - 1, ACS_URCORNER);
+    mvaddch(row + height - 1, col, ACS_LLCORNER);
+    mvaddch(row + height - 1, col + width - 1, ACS_LRCORNER);
+    /* Borders */
+    draw_hline(row, col + 1, width - 2, ACS_HLINE);
+    draw_hline(row + height - 1, col + 1, width - 2, ACS_HLINE);
+    draw_vline(row + 1, col, height - 2, ACS_VLINE);
+    draw_vline(row + 1, col + width - 1, height - 2, ACS_VLINE);
+    attroff(COLOR_PAIR(color));
+}
+
+/* Quick MC price for Greeks computation */
+static float mc_price(const OptionParams *params, int num_paths,
+                      int num_steps, int block_size) {
+    mc_set_params(params);
+    curandState *d_states = mc_init_rng(num_paths, block_size);
+    float *d_payoffs = mc_run_simulation(d_states, num_paths, num_steps, block_size);
+    float mean_payoff, variance;
+    reduce_payoffs(d_payoffs, num_paths, &mean_payoff, &variance);
+    float discount = expf(-params->r * params->T);
+    float price = discount * mean_payoff;
+    cudaFree(d_states);
+    cudaFree(d_payoffs);
+    return price;
+}
+
+/* Generate sample price paths for spaghetti chart */
+#define MAX_SPAGHETTI_PATHS 20
+#define SPAGHETTI_STEPS 50
+
+static void generate_spaghetti_paths(float paths[MAX_SPAGHETTI_PATHS][SPAGHETTI_STEPS],
+                                     int num_paths, const OptionParams *params) {
+    float dt = params->T / (SPAGHETTI_STEPS - 1);
+    float drift = (params->r - 0.5f * params->sigma * params->sigma) * dt;
+    float vol_sqrt_dt = params->sigma * sqrtf(dt);
+    
+    for (int p = 0; p < num_paths && p < MAX_SPAGHETTI_PATHS; p++) {
+        paths[p][0] = params->S;
+        unsigned int seed = 1234 + p * 17;
+        for (int s = 1; s < SPAGHETTI_STEPS; s++) {
+            /* Simple Box-Muller approximation */
+            float u1 = (float)((seed = (seed * 1103515245 + 12345) & 0x7fffffff)) / 2147483647.0f;
+            float u2 = (float)((seed = (seed * 1103515245 + 12345) & 0x7fffffff)) / 2147483647.0f;
+            float z = sqrtf(-2.0f * logf(fmaxf(u1, 0.0001f))) * cosf(2.0f * M_PI * u2);
+            
+            paths[p][s] = paths[p][s-1] * expf(drift + vol_sqrt_dt * z);
+        }
+    }
+}
+
+static void draw_spaghetti_chart(int row, int col, int width, int height,
+                                 float paths[MAX_SPAGHETTI_PATHS][SPAGHETTI_STEPS],
+                                 int num_paths, float strike, int itm_color, int otm_color) {
+    if (width < 10 || height < 3) return;
+    
+    /* Find min/max for scaling */
+    float mn = paths[0][0], mx = paths[0][0];
+    for (int p = 0; p < num_paths && p < MAX_SPAGHETTI_PATHS; p++) {
+        for (int s = 0; s < SPAGHETTI_STEPS; s++) {
+            if (paths[p][s] < mn) mn = paths[p][s];
+            if (paths[p][s] > mx) mx = paths[p][s];
+        }
+    }
+    float range = mx - mn;
+    if (range < 0.001f) range = 1.0f;
+    
+    /* Simple ASCII line chars for paths */
+    const char* line_chars = " .:-=+*#%@";
+    int num_chars = 10;
+    
+    for (int p = 0; p < num_paths && p < MAX_SPAGHETTI_PATHS; p++) {
+        /* Determine if path ends ITM (green) or OTM (red) */
+        int ends_itm = (paths[p][SPAGHETTI_STEPS-1] > strike) ? 1 : 0;
+        int color = ends_itm ? itm_color : otm_color;
+        attron(COLOR_PAIR(color));
+        
+        for (int s = 0; s < SPAGHETTI_STEPS - 1 && s < width - 2; s++) {
+            float y1 = paths[p][s];
+            float y2 = paths[p][s+1];
+            
+            /* Map to screen coordinates */
+            int screen_y1 = row + height - 2 - (int)((y1 - mn) / range * (height - 3));
+            int screen_y2 = row + height - 2 - (int)((y2 - mn) / range * (height - 3));
+            
+            /* Clamp */
+            if (screen_y1 < row + 1) screen_y1 = row + 1;
+            if (screen_y1 > row + height - 2) screen_y1 = row + height - 2;
+            if (screen_y2 < row + 1) screen_y2 = row + 1;
+            if (screen_y2 > row + height - 2) screen_y2 = row + height - 2;
+            
+            /* Draw line segment with simple char */
+            int mid_y = (screen_y1 + screen_y2) / 2;
+            int level = (p % num_chars);
+            if (s % 2 == 0) {
+                mvaddch(mid_y, col + 1 + s, line_chars[level]);
+            }
+        }
+        attroff(COLOR_PAIR(color));
+    }
+}
 
 static MCResult run_mc_once(const OptionParams *params, int num_paths,
                             int num_steps, int block_size) {
@@ -63,6 +182,47 @@ static MCResult run_mc_once(const OptionParams *params, int num_paths,
     cudaEventElapsedTime(&res.kernel_ms, ks, ke);
     cudaEventElapsedTime(&res.total_ms, start, stop);
     res.throughput = (float)num_paths / (res.kernel_ms / 1000.0f) / 1e6f;
+
+    /* Compute Greeks using bump-and-reprice */
+    float base_price = res.price;
+    float dS = params->S * 0.01f;
+    OptionParams bumped = *params;
+    
+    /* Delta */
+    bumped.S = params->S + dS;
+    bumped.r = params->r; bumped.sigma = params->sigma; bumped.T = params->T;
+    float price_up = mc_price(&bumped, num_paths/4, num_steps, block_size);
+    bumped.S = params->S - dS;
+    float price_down = mc_price(&bumped, num_paths/4, num_steps, block_size);
+    res.delta = (price_up - price_down) / (2.0f * dS);
+    
+    /* Gamma */
+    res.gamma = (price_up - 2.0f * base_price + price_down) / (dS * dS);
+    
+    /* Vega */
+    float dsigma = 0.01f;
+    bumped = *params; bumped.sigma = params->sigma + dsigma;
+    float price_vup = mc_price(&bumped, num_paths/4, num_steps, block_size);
+    bumped.sigma = params->sigma - dsigma;
+    float price_vdown = mc_price(&bumped, num_paths/4, num_steps, block_size);
+    res.vega = (price_vup - price_vdown) / (2.0f * dsigma) * 0.01f;
+    
+    /* Theta */
+    float dT = 1.0f / 365.0f;
+    bumped = *params; bumped.T = fmaxf(params->T - dT, 0.001f);
+    float price_tdec = mc_price(&bumped, num_paths/4, num_steps, block_size);
+    res.theta = (price_tdec - base_price) / dT / 365.0f;
+    
+    /* Rho */
+    float dr = 0.001f;
+    bumped = *params; bumped.r = params->r + dr;
+    float price_rup = mc_price(&bumped, num_paths/4, num_steps, block_size);
+    bumped.r = params->r - dr;
+    float price_rdown = mc_price(&bumped, num_paths/4, num_steps, block_size);
+    res.rho = (price_rup - price_rdown) / (2.0f * dr) * 0.01f;
+    
+    /* Restore params */
+    mc_set_params(params);
 
     cudaFree(d_states);
     cudaFree(d_payoffs);
@@ -283,14 +443,97 @@ void launch_dashboard(OptionParams *params, int num_paths,
             attroff(COLOR_PAIR(CLR_WHITE));
         }
 
-        /* Timing sparkline */
-        int time_row = spark_row + 3;
+        /* Greeks 4-Quadrant Panel */
+        int greek_row = spark_row + 3;
         attron(COLOR_PAIR(CLR_HEADER) | A_BOLD);
-        mvhline(time_row, 1, ' ', w - 2);
-        mvprintw(time_row, 1, " Kernel Time (ms) ");
+        mvhline(greek_row, 1, ' ', w - 2);
+        mvprintw(greek_row, 1, " Greeks (Monte Carlo) ");
         attroff(COLOR_PAIR(CLR_HEADER) | A_BOLD);
-        time_row++;
-        draw_sparkline(time_row, 2, spark_w, time_history, hist_count, CLR_YELLOW);
+        greek_row++;
+        
+        /* Calculate quadrant dimensions */
+        int quad_w = (w - 6) / 2;  /* Two columns with spacing */
+        int quad_h = 6;             /* Height of each quadrant box */
+        int left_col = 2;
+        int right_col = left_col + quad_w + 2;
+        
+        /* Top row: Delta (left) and Gamma (right) */
+        /* Delta quadrant */
+        draw_box(greek_row, left_col, quad_w, quad_h, CLR_CYAN);
+        attron(COLOR_PAIR(CLR_YELLOW) | A_BOLD);
+        mvprintw(greek_row + 1, left_col + 2, "Delta");
+        attroff(COLOR_PAIR(CLR_YELLOW) | A_BOLD);
+        attron(COLOR_PAIR(CLR_WHITE));
+        mvprintw(greek_row + 2, left_col + 2, "dV/dS");
+        attron(COLOR_PAIR(CLR_GREEN) | A_BOLD);
+        mvprintw(greek_row + 3, left_col + 2, "%.4f", res.delta);
+        attroff(COLOR_PAIR(CLR_GREEN) | A_BOLD);
+        attroff(COLOR_PAIR(CLR_WHITE));
+        
+        /* Gamma quadrant */
+        draw_box(greek_row, right_col, quad_w, quad_h, CLR_CYAN);
+        attron(COLOR_PAIR(CLR_YELLOW) | A_BOLD);
+        mvprintw(greek_row + 1, right_col + 2, "Gamma");
+        attroff(COLOR_PAIR(CLR_YELLOW) | A_BOLD);
+        attron(COLOR_PAIR(CLR_WHITE));
+        mvprintw(greek_row + 2, right_col + 2, "d2V/dS2");
+        attron(COLOR_PAIR(CLR_GREEN) | A_BOLD);
+        mvprintw(greek_row + 3, right_col + 2, "%.6f", res.gamma);
+        attroff(COLOR_PAIR(CLR_GREEN) | A_BOLD);
+        attroff(COLOR_PAIR(CLR_WHITE));
+        
+        /* Bottom row: Vega (left) and Theta (right) */
+        greek_row += quad_h;
+        
+        /* Vega quadrant */
+        draw_box(greek_row, left_col, quad_w, quad_h, CLR_CYAN);
+        attron(COLOR_PAIR(CLR_YELLOW) | A_BOLD);
+        mvprintw(greek_row + 1, left_col + 2, "Vega");
+        attroff(COLOR_PAIR(CLR_YELLOW) | A_BOLD);
+        attron(COLOR_PAIR(CLR_WHITE));
+        mvprintw(greek_row + 2, left_col + 2, "per 1%% vol");
+        attron(COLOR_PAIR(CLR_GREEN) | A_BOLD);
+        mvprintw(greek_row + 3, left_col + 2, "%.4f", res.vega);
+        attroff(COLOR_PAIR(CLR_GREEN) | A_BOLD);
+        attroff(COLOR_PAIR(CLR_WHITE));
+        
+        /* Theta quadrant */
+        draw_box(greek_row, right_col, quad_w, quad_h, CLR_CYAN);
+        attron(COLOR_PAIR(CLR_YELLOW) | A_BOLD);
+        mvprintw(greek_row + 1, right_col + 2, "Theta");
+        attroff(COLOR_PAIR(CLR_YELLOW) | A_BOLD);
+        attron(COLOR_PAIR(CLR_WHITE));
+        mvprintw(greek_row + 2, right_col + 2, "per day");
+        attron(COLOR_PAIR(CLR_GREEN) | A_BOLD);
+        mvprintw(greek_row + 3, right_col + 2, "%.4f", res.theta);
+        attroff(COLOR_PAIR(CLR_GREEN) | A_BOLD);
+        attroff(COLOR_PAIR(CLR_WHITE));
+        
+        /* Rho - small inline display */
+        greek_row += quad_h + 1;
+        attron(COLOR_PAIR(CLR_CYAN));
+        mvprintw(greek_row, left_col, "Rho (per 1%%): ");
+        attron(COLOR_PAIR(CLR_GREEN) | A_BOLD);
+        printw("%.4f", res.rho);
+        attroff(COLOR_PAIR(CLR_GREEN) | A_BOLD);
+        attroff(COLOR_PAIR(CLR_CYAN));
+        
+        /* Spaghetti Chart at bottom */
+        int spag_row = greek_row + 2;
+        int spag_height = 12;
+        if (rows - spag_row - 2 >= spag_height) {
+            attron(COLOR_PAIR(CLR_HEADER) | A_BOLD);
+            mvhline(spag_row, 1, ' ', w - 2);
+            mvprintw(spag_row, 1, " Monte Carlo Paths (Green=ITM, Red=OTM) ");
+            attroff(COLOR_PAIR(CLR_HEADER) | A_BOLD);
+            spag_row++;
+            
+            /* Generate and draw spaghetti paths */
+            float spaghetti[MAX_SPAGHETTI_PATHS][SPAGHETTI_STEPS];
+            generate_spaghetti_paths(spaghetti, MAX_SPAGHETTI_PATHS, params);
+            draw_spaghetti_chart(spag_row, 1, w - 2, spag_height, spaghetti, 
+                                 MAX_SPAGHETTI_PATHS, params->K, CLR_GREEN, CLR_RED);
+        }
 
         /* Help bar at bottom */
         attron(COLOR_PAIR(CLR_TITLE));

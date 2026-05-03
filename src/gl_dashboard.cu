@@ -15,6 +15,7 @@
 #include "monte_carlo.h"
 #include "reduction.h"
 #include "black_scholes.h"
+#include "greeks.h"
 
 /* ─── Configuration ─── */
 #define WIN_W 1400
@@ -170,6 +171,10 @@ typedef struct {
     int iteration;
     float avg_price;
     float cum_time_ms;
+
+    /* Greeks */
+    float delta, gamma_val, vega, theta, rho;
+    int greeks_computed;
 } DashState;
 
 static DashState g_state;
@@ -266,6 +271,21 @@ static void run_mc_tick(DashState *st) {
         st->bs_price = bs_put_price(&st->params);
     else
         st->bs_price = 0.0f;
+
+    /* Greeks — compute every 10 iterations using reduced path count */
+    if (st->iteration % 10 == 1) {
+        int greek_paths = st->num_paths / 4;
+        if (greek_paths < 10000) greek_paths = 10000;
+        Greeks g = compute_greeks_gpu(&st->params, greek_paths, st->num_steps, st->block_size);
+        st->delta       = g.delta;
+        st->gamma_val   = g.gamma;
+        st->vega        = g.vega;
+        st->theta       = g.theta;
+        st->rho         = g.rho;
+        st->greeks_computed = 1;
+        /* Restore params after Greeks bumping */
+        mc_set_params(&st->params);
+    }
 }
 
 /* ─── Draw the panels ─── */
@@ -345,13 +365,52 @@ static void draw_price_chart(float px, float py, float pw, float ph, DashState *
         draw_rect(cx + cw * 0.9f, y_lo, cw * 0.1f, y_hi - y_lo);
     }
 
-    /* Labels */
+    /* Y-axis labels */
     char buf[64];
     set_color(0.7f, 0.7f, 0.7f, 1.0f);
-    snprintf(buf, sizeof(buf), "%.0f", mx);
+    snprintf(buf, sizeof(buf), "$%.2f", mx);
     draw_bitmap_text(cx + 2, cy + ch - 2, buf, 1.5f);
-    snprintf(buf, sizeof(buf), "%.0f", mn);
+    snprintf(buf, sizeof(buf), "$%.2f", mn);
     draw_bitmap_text(cx + 2, cy + 12, buf, 1.5f);
+
+    /* Legend box — bottom right of chart */
+    float lx = cx + cw - 180, ly = cy + 8;
+    float lw = 175, lh = 68;
+    set_color(0.08f, 0.10f, 0.14f, 0.85f);
+    draw_rect(lx, ly, lw, lh);
+    set_color(0.3f, 0.4f, 0.5f, 0.6f);
+    draw_rect_outline(lx, ly, lw, lh);
+
+    float row = ly + lh - 14;
+    float swx = lx + 6, tsx = lx + 22;
+    float fs = 1.5f;
+
+    /* Green swatch */
+    set_color(0.2f, 0.9f, 0.4f, 1.0f);
+    draw_rect(swx, row, 12, 8);
+    set_color(0.85f, 0.85f, 0.85f, 1.0f);
+    draw_bitmap_text(tsx, row + 6, "MC PRICE > AVG", fs);
+    row -= 16;
+
+    /* Red swatch */
+    set_color(0.9f, 0.3f, 0.3f, 1.0f);
+    draw_rect(swx, row, 12, 8);
+    set_color(0.85f, 0.85f, 0.85f, 1.0f);
+    draw_bitmap_text(tsx, row + 6, "MC PRICE < AVG", fs);
+    row -= 16;
+
+    /* Yellow swatch */
+    set_color(1.0f, 0.8f, 0.0f, 0.8f);
+    draw_rect(swx, row, 12, 3);
+    set_color(0.85f, 0.85f, 0.85f, 1.0f);
+    draw_bitmap_text(tsx, row + 6, "BLACK-SCHOLES", fs);
+    row -= 16;
+
+    /* Blue swatch */
+    set_color(0.2f, 0.6f, 1.0f, 0.5f);
+    draw_rect(swx, row, 12, 8);
+    set_color(0.85f, 0.85f, 0.85f, 1.0f);
+    draw_bitmap_text(tsx, row + 6, "95% CONF. INTERVAL", fs);
 }
 
 static void draw_histogram(float px, float py, float pw, float ph, DashState *st) {
@@ -465,7 +524,28 @@ static void draw_results_panel(float px, float py, float pw, float ph, DashState
     snprintf(buf, sizeof(buf), "THRU: %.0f MPPS", st->throughput);
     draw_bitmap_text(tx, ty, buf, fs); ty -= lh;
     snprintf(buf, sizeof(buf), "ITER: %d", st->iteration);
-    draw_bitmap_text(tx, ty, buf, fs);
+    draw_bitmap_text(tx, ty, buf, fs); ty -= lh;
+
+    if (st->greeks_computed) {
+        ty -= 4;
+        set_color(0.4f, 0.7f, 0.4f, 1.0f);
+        draw_bitmap_text(tx, ty, "-- GREEKS --", fs); ty -= lh;
+        set_color(0.85f, 0.85f, 0.85f, 1.0f);
+        snprintf(buf, sizeof(buf), "DELTA: %+.4f", st->delta);
+        draw_bitmap_text(tx, ty, buf, fs); ty -= lh;
+        snprintf(buf, sizeof(buf), "GAMMA: %+.4f", st->gamma_val);
+        draw_bitmap_text(tx, ty, buf, fs); ty -= lh;
+        snprintf(buf, sizeof(buf), "VEGA:  %+.4f", st->vega);
+        draw_bitmap_text(tx, ty, buf, fs); ty -= lh;
+        snprintf(buf, sizeof(buf), "THETA: %+.4f", st->theta);
+        draw_bitmap_text(tx, ty, buf, fs); ty -= lh;
+        snprintf(buf, sizeof(buf), "RHO:   %+.4f", st->rho);
+        draw_bitmap_text(tx, ty, buf, fs);
+    } else {
+        ty -= 4;
+        set_color(0.4f, 0.4f, 0.4f, 0.8f);
+        draw_bitmap_text(tx, ty, "GREEKS: COMPUTING...", fs);
+    }
 }
 
 static void draw_help_bar(float w) {
@@ -613,24 +693,36 @@ void launch_gl_dashboard(OptionParams *initial_params, int num_paths,
          * └──────────────────────┴───────────┘
          * │   HELP BAR                       │
          */
-        float sidebar_w = 280;
+        float header_h = 28.0f;
+        float sidebar_w = 360;
         float chart_w = w - sidebar_w - 20;
-        float chart_h = (h - 24 - 30) * 0.6f;
-        float hist_h = (h - 24 - 30) * 0.4f;
-        float bar_y = 0;
-        float hist_y = bar_y + 24 + 5;
+        float usable_h = h - 24 - header_h - 15;
+        float chart_h = usable_h * 0.58f;
+        float hist_h  = usable_h * 0.42f;
+        float bar_y   = 0;
+        float hist_y  = bar_y + 24 + 5;
         float chart_y = hist_y + hist_h + 5;
+        float sidebar_x = chart_w + 15;
+        float params_h  = usable_h * 0.32f;
+        float results_h = usable_h * 0.68f;
+        float params_y  = hist_y + results_h + 5;
+
+        /* Top header bar */
+        set_color(0.05f, 0.12f, 0.25f, 1.0f);
+        draw_rect(0, h - header_h, w, header_h);
+        set_color(0.3f, 0.6f, 1.0f, 0.6f);
+        draw_line(0, h - header_h, w, h - header_h);
+        set_color(0.9f, 0.95f, 1.0f, 1.0f);
+        draw_bitmap_text(8, h - 8, "GPU MONTE CARLO OPTION PRICING ENGINE", 2.2f);
+        set_color(0.5f, 0.7f, 0.9f, 0.8f);
+        draw_bitmap_text(w - 340, h - 8, "EN605.617  |  RTX 3060 Ti", 1.8f);
 
         /* Draw panels */
         draw_price_chart(5, chart_y, chart_w, chart_h, &g_state);
         draw_histogram(5, hist_y, chart_w, hist_h, &g_state);
-        draw_params_panel(chart_w + 15, chart_y, sidebar_w, chart_h * 0.55f, &g_state);
-        draw_results_panel(chart_w + 15, hist_y, sidebar_w, chart_h * 0.45f + hist_h, &g_state);
+        draw_params_panel(sidebar_x, params_y, sidebar_w, params_h, &g_state);
+        draw_results_panel(sidebar_x, hist_y, sidebar_w, results_h, &g_state);
         draw_help_bar(w);
-
-        /* Title */
-        set_color(0.9f, 0.95f, 1.0f, 1.0f);
-        draw_bitmap_text(5, h - 18, "GPU MONTE CARLO OPTION PRICING ENGINE", 2.2f);
 
         glfwSwapBuffers(window);
         glfwPollEvents();
