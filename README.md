@@ -48,7 +48,8 @@ Green = in-the-money (above strike), Red = out-of-the-money (below strike)
 - **Merton Jump-Diffusion** — Model crash/black swan events with configurable jump parameters
 - **CUDA Streams** — Concurrent portfolio pricing (8 options on 4 streams)
 - **GPU Visualization** — Spaghetti plots and payoff histograms rendered directly on GPU
-- **Interactive Dashboard** — ncurses-based real-time parameter adjustment with ASCII sparklines
+- **OpenGL Dashboard** — real-time GPU pricing with live price history chart, payoff histogram, Greeks, and convergence tracking (`--gui`)
+- **Interactive Dashboard** — ncurses-based real-time parameter adjustment with ASCII sparklines (`--dashboard`)
 - **CPU Baseline** — Side-by-side comparison with single-threaded CPU implementation
 - **Benchmarking** — Block-size sweeps, path-count scaling, CPU vs GPU timing
 
@@ -59,7 +60,13 @@ Green = in-the-money (above strike), Red = out-of-the-money (below strike)
 - NVIDIA GPU (developed on RTX 3060 Ti, compute capability 8.6)
 - CUDA Toolkit 11.5+
 - GCC 11+
-- ncurses (for dashboard mode)
+- ncurses (for `--dashboard` mode)
+- OpenGL, GLFW3, GLEW (for `--gui` mode)
+
+```bash
+# Ubuntu/Debian
+sudo apt install libncurses-dev libglfw3-dev libglew-dev
+```
 
 ## Build & Run
 
@@ -83,8 +90,17 @@ make all
 # Asian option
 ./mc_pricer --type asian
 
-# Interactive dashboard
+# Interactive ncurses dashboard
 ./mc_pricer --dashboard
+
+# OpenGL real-time graphical dashboard
+./mc_pricer --gui --preset SPY -n 500000
+
+# GPU spaghetti plot + histogram
+./mc_pricer --visualize --preset SPY
+
+# Option Greeks
+./mc_pricer --greeks --preset SPY
 
 # Benchmark mode
 ./mc_pricer --benchmark
@@ -140,7 +156,8 @@ make all
 │   ├── streams.cu           # Multi-stream portfolio pricing
 │   ├── render_ppm.cu        # GPU spaghetti plot + histogram rendering
 │   ├── cpu_baseline.cpp     # CPU reference implementation
-│   └── dashboard.cu         # ncurses interactive dashboard
+│   ├── dashboard.cu         # ncurses interactive dashboard
+│   └── gl_dashboard.cu      # OpenGL real-time graphical dashboard
 ├── include/
 │   └── option_params.h      # Option parameter structs, constants
 ├── benchmark/
