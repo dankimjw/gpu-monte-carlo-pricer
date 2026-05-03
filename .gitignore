@@ -10,5 +10,3 @@ output/*.ppm
 
 # Local working files (plans, test scripts, scratch)
 .local/
-opencl/build/
-opencl/mc_pricer_ocl

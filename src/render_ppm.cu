@@ -9,116 +9,6 @@
 /* RGB pixel */
 typedef struct { unsigned char r, g, b; } Pixel;
 
-/* ---------- Minimal 5x7 bitmap font (ASCII 32-90) ---------- */
-static const unsigned char FONT5X7[][7] = {
- /* ' ' */ {0x00,0x00,0x00,0x00,0x00,0x00,0x00},
- /* '!' */ {0x04,0x04,0x04,0x04,0x00,0x04,0x00},
- /* '"' */ {0x0A,0x0A,0x00,0x00,0x00,0x00,0x00},
- /* '#' */ {0x0A,0x1F,0x0A,0x0A,0x1F,0x0A,0x00},
- /* '$' */ {0x04,0x0F,0x14,0x0E,0x05,0x1E,0x04},
- /* '%' */ {0x18,0x19,0x02,0x04,0x08,0x13,0x03},
- /* '&' */ {0x0C,0x12,0x14,0x08,0x15,0x12,0x0D},
- /* '\'' */ {0x04,0x04,0x00,0x00,0x00,0x00,0x00},
- /* '(' */ {0x02,0x04,0x08,0x08,0x08,0x04,0x02},
- /* ')' */ {0x08,0x04,0x02,0x02,0x02,0x04,0x08},
- /* '*' */ {0x00,0x04,0x15,0x0E,0x15,0x04,0x00},
- /* '+' */ {0x00,0x04,0x04,0x1F,0x04,0x04,0x00},
- /* ',' */ {0x00,0x00,0x00,0x00,0x06,0x04,0x08},
- /* '-' */ {0x00,0x00,0x00,0x1F,0x00,0x00,0x00},
- /* '.' */ {0x00,0x00,0x00,0x00,0x00,0x06,0x06},
- /* '/' */ {0x00,0x01,0x02,0x04,0x08,0x10,0x00},
- /* '0' */ {0x0E,0x11,0x13,0x15,0x19,0x11,0x0E},
- /* '1' */ {0x04,0x0C,0x04,0x04,0x04,0x04,0x0E},
- /* '2' */ {0x0E,0x11,0x01,0x06,0x08,0x10,0x1F},
- /* '3' */ {0x1F,0x02,0x04,0x02,0x01,0x11,0x0E},
- /* '4' */ {0x02,0x06,0x0A,0x12,0x1F,0x02,0x02},
- /* '5' */ {0x1F,0x10,0x1E,0x01,0x01,0x11,0x0E},
- /* '6' */ {0x06,0x08,0x10,0x1E,0x11,0x11,0x0E},
- /* '7' */ {0x1F,0x01,0x02,0x04,0x08,0x08,0x08},
- /* '8' */ {0x0E,0x11,0x11,0x0E,0x11,0x11,0x0E},
- /* '9' */ {0x0E,0x11,0x11,0x0F,0x01,0x02,0x0C},
- /* ':' */ {0x00,0x06,0x06,0x00,0x06,0x06,0x00},
- /* ';' */ {0x00,0x06,0x06,0x00,0x06,0x04,0x08},
- /* '<' */ {0x02,0x04,0x08,0x10,0x08,0x04,0x02},
- /* '=' */ {0x00,0x00,0x1F,0x00,0x1F,0x00,0x00},
- /* '>' */ {0x08,0x04,0x02,0x01,0x02,0x04,0x08},
- /* '?' */ {0x0E,0x11,0x01,0x06,0x04,0x00,0x04},
- /* '@' */ {0x0E,0x11,0x01,0x0D,0x15,0x15,0x0E},
- /* 'A' */ {0x0E,0x11,0x11,0x1F,0x11,0x11,0x11},
- /* 'B' */ {0x1E,0x11,0x11,0x1E,0x11,0x11,0x1E},
- /* 'C' */ {0x0E,0x11,0x10,0x10,0x10,0x11,0x0E},
- /* 'D' */ {0x1C,0x12,0x11,0x11,0x11,0x12,0x1C},
- /* 'E' */ {0x1F,0x10,0x10,0x1E,0x10,0x10,0x1F},
- /* 'F' */ {0x1F,0x10,0x10,0x1E,0x10,0x10,0x10},
- /* 'G' */ {0x0E,0x11,0x10,0x17,0x11,0x11,0x0F},
- /* 'H' */ {0x11,0x11,0x11,0x1F,0x11,0x11,0x11},
- /* 'I' */ {0x0E,0x04,0x04,0x04,0x04,0x04,0x0E},
- /* 'J' */ {0x07,0x02,0x02,0x02,0x02,0x12,0x0C},
- /* 'K' */ {0x11,0x12,0x14,0x18,0x14,0x12,0x11},
- /* 'L' */ {0x10,0x10,0x10,0x10,0x10,0x10,0x1F},
- /* 'M' */ {0x11,0x1B,0x15,0x15,0x11,0x11,0x11},
- /* 'N' */ {0x11,0x19,0x15,0x13,0x11,0x11,0x11},
- /* 'O' */ {0x0E,0x11,0x11,0x11,0x11,0x11,0x0E},
- /* 'P' */ {0x1E,0x11,0x11,0x1E,0x10,0x10,0x10},
- /* 'Q' */ {0x0E,0x11,0x11,0x11,0x15,0x12,0x0D},
- /* 'R' */ {0x1E,0x11,0x11,0x1E,0x14,0x12,0x11},
- /* 'S' */ {0x0F,0x10,0x10,0x0E,0x01,0x01,0x1E},
- /* 'T' */ {0x1F,0x04,0x04,0x04,0x04,0x04,0x04},
- /* 'U' */ {0x11,0x11,0x11,0x11,0x11,0x11,0x0E},
- /* 'V' */ {0x11,0x11,0x11,0x11,0x11,0x0A,0x04},
- /* 'W' */ {0x11,0x11,0x15,0x15,0x15,0x15,0x0A},
- /* 'X' */ {0x11,0x11,0x0A,0x04,0x0A,0x11,0x11},
- /* 'Y' */ {0x11,0x11,0x0A,0x04,0x04,0x04,0x04},
- /* 'Z' */ {0x1F,0x01,0x02,0x04,0x08,0x10,0x1F},
-};
-
-/* Draw a single character at (px, py) with given scale and color */
-static void draw_char(Pixel *fb, int fw, int fh, int px, int py,
-                      char c, int scale,
-                      unsigned char cr, unsigned char cg, unsigned char cb) {
-    int idx;
-    if (c < 32 || c > 90) c = 32; /* clamp to font range; lowercase treated as space */
-    const unsigned char *glyph = FONT5X7[(unsigned char)(c - 32)];
-    for (int row = 0; row < 7; row++) {
-        for (int col = 0; col < 5; col++) {
-            if (glyph[row] & (0x10 >> col)) {
-                for (int sy = 0; sy < scale; sy++) {
-                    for (int sx = 0; sx < scale; sx++) {
-                        int x = px + col * scale + sx;
-                        int y = py + row * scale + sy;
-                        if (x >= 0 && x < fw && y >= 0 && y < fh) {
-                            idx = y * fw + x;
-                            fb[idx].r = cr; fb[idx].g = cg; fb[idx].b = cb;
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-/* Draw a string — uppercased automatically to match font range */
-static void draw_text(Pixel *fb, int fw, int fh, int px, int py,
-                      const char *str, int scale,
-                      unsigned char cr, unsigned char cg, unsigned char cb) {
-    int x = px;
-    for (int i = 0; str[i]; i++) {
-        char c = str[i];
-        if (c >= 'a' && c <= 'z') c = c - 'a' + 'A';
-        draw_char(fb, fw, fh, x, py, c, scale, cr, cg, cb);
-        x += (5 + 1) * scale;
-    }
-}
-
-/* Fill a solid rectangle */
-static void fill_rect(Pixel *fb, int fw, int fh,
-                      int x0, int y0, int w, int h,
-                      unsigned char cr, unsigned char cg, unsigned char cb) {
-    for (int y = y0; y < y0 + h && y < fh; y++)
-        for (int x = x0; x < x0 + w && x < fw; x++)
-            { fb[y*fw+x].r=cr; fb[y*fw+x].g=cg; fb[y*fw+x].b=cb; }
-}
-
 /* Kernel: simulate paths and draw them onto the framebuffer
  * Each thread simulates one path and plots it pixel by pixel */
 __global__ void spaghetti_kernel(curandState *states, Pixel *framebuffer,
@@ -286,35 +176,10 @@ void render_spaghetti_ppm(const OptionParams *params, int num_paths,
                                             params->K, y_min, y_max);
     cudaDeviceSynchronize();
 
-    /* Copy back */
+    /* Copy back and write */
     cudaMemcpy(h_fb, d_fb, num_pixels * sizeof(Pixel), cudaMemcpyDeviceToHost);
-
-    /* --- CPU-side annotation: title bar at top --- */
-    {
-        int bar_h = 28;
-        fill_rect(h_fb, width, height, 0, 0, width, bar_h, 20, 20, 35);
-        /* Title */
-        char title[128];
-        snprintf(title, sizeof(title),
-                 "GPU MONTE CARLO  S=%.0f  K=%.0f  VOL=%.0f%%  T=%.1FYR  PATHS=%d",
-                 params->S, params->K, params->sigma * 100.0f, params->T, num_paths);
-        draw_text(h_fb, width, height, 10, 6, title, 2, 220, 220, 220);
-        /* Legend: green square = ITM, red square = OTM */
-        int lx = width - 340;
-        fill_rect(h_fb, width, height, lx,      8, 12, 12,  0, 180,  80);
-        draw_text(h_fb, width, height, lx + 16, 7, "ITM", 2, 0, 180, 80);
-        fill_rect(h_fb, width, height, lx + 80, 8, 12, 12, 200,  50,  50);
-        draw_text(h_fb, width, height, lx + 96, 7, "OTM", 2, 200, 50, 50);
-        /* Strike label near dashed line */
-        int ky = height - 1 - (int)((params->K - y_min) / (y_max - y_min) * (height - 1));
-        if (ky > bar_h + 10 && ky < height - 10) {
-            char klabel[32];
-            snprintf(klabel, sizeof(klabel), "K=%.0f", params->K);
-            draw_text(h_fb, width, height, 6, ky - 8, klabel, 2, 255, 255, 200);
-        }
-    }
-
     write_ppm(filename, h_fb, width, height);
+
     printf("  Saved %s\n", filename);
 
     cudaFree(d_fb);
@@ -431,31 +296,6 @@ void render_histogram_ppm(float *d_payoffs, int num_paths,
     for (int y = margin_top; y < height - margin_bottom; y++) {
         int x = margin_left;
         h_fb[y * width + x].r = 100; h_fb[y * width + x].g = 100; h_fb[y * width + x].b = 100;
-    }
-
-    /* --- CPU-side annotation: title bar + axis labels --- */
-    {
-        int bar_h = 28;
-        fill_rect(h_fb, width, height, 0, 0, width, bar_h, 20, 20, 35);
-        char title[128];
-        snprintf(title, sizeof(title),
-                 "PAYOFF DISTRIBUTION  %d PATHS  ITM=%d (%.1f%%)  MAX=$%.1f",
-                 num_paths, itm_count,
-                 100.0f * itm_count / (itm_count + otm_count > 0 ? itm_count + otm_count : 1),
-                 max_payoff);
-        draw_text(h_fb, width, height, 10, 6, title, 2, 220, 220, 220);
-        /* X-axis label */
-        draw_text(h_fb, width, height, width/2 - 80, height - 14,
-                  "PAYOFF ($)", 2, 160, 160, 160);
-        /* Y-axis label (rotated not possible without more code — just print at top-left) */
-        draw_text(h_fb, width, height, 2, margin_top + 2,
-                  "COUNT", 2, 160, 160, 160);
-        /* X-axis tick: $0 and max */
-        char tmp[32];
-        snprintf(tmp, sizeof(tmp), "$0");
-        draw_text(h_fb, width, height, margin_left, height - margin_bottom + 4, tmp, 2, 130, 130, 130);
-        snprintf(tmp, sizeof(tmp), "$%.0F", max_payoff);
-        draw_text(h_fb, width, height, width - margin_right - 60, height - margin_bottom + 4, tmp, 2, 130, 130, 130);
     }
 
     write_ppm(filename, h_fb, width, height);
