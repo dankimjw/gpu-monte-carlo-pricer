@@ -1,3 +1,5 @@
+> **DO NOT MERGE** — This branch contains a standalone homework assignment (OpenCL). It is kept separate from the final project on `main` intentionally.
+
 # OpenCL Monte Carlo Option Pricer
 
 An OpenCL implementation of a Monte Carlo European option pricing engine.  Prices
