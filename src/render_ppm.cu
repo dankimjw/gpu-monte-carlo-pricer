@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
+#include <time.h>
 #include <curand_kernel.h>
 #include "../include/option_params.h"
 #include "render_ppm.h"

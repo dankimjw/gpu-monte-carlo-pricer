@@ -287,7 +287,7 @@ The OpenGL dashboard (`gl_dashboard.cu`) runs a continuous pricing loop and rend
 - **Parameters panel** — spot, strike, volatility, rate, expiry, jump parameters
 - **Results panel** — MC price, running average, 95% confidence interval, BS analytical price, error %, kernel time, throughput, iteration count, and all 5 Greeks (computed every 10 iterations via bump-and-reprice)
 
-Every dashboard frame represents a full GPU MC simulation. With 500,000 paths and a 1.13ms kernel time, the dashboard runs at **~100 iterations/second**, meaning in one second the GPU has simulated **50 million independent price paths in parallel**. Each of the 4,864 CUDA cores on the RTX 3060 Ti is simultaneously executing a different price path — this is not an approximation, it is the measured hardware throughput of 442 Mpaths/sec.
+Every dashboard frame represents a full GPU MC simulation. With 500,000 paths and a 1.13ms kernel time, the dashboard runs at **~100 iterations/second**, meaning in one second the GPU has simulated **50 million independent price paths in parallel**. The GPU maps paths to CUDA threads and schedules those threads concurrently across 38 SMs, reaching a measured throughput of 442 Mpaths/sec on the RTX 3060 Ti.
 
 To put it concretely: in the time it takes to blink (~150ms), the GPU completes ~65 million simulated price paths. The CPU doing the same work sequentially would take over 9 minutes.
 

@@ -10,7 +10,7 @@ A CUDA-based Monte Carlo simulation engine for pricing financial options with GP
 
 Green = in-the-money (above strike), Red = out-of-the-money (below strike)
 
-| Standard (SPY) | BTC with Jump-Diffusion |
+| Standard (SPY) | BTC preset (GBM paths; jump-diffusion affects pricing/histograms) |
 |:-:|:-:|
 | ![Spaghetti Plot](output/spaghetti.png) | ![BTC Spaghetti](output/spaghetti_btc_jumps.png) |
 
@@ -47,7 +47,7 @@ Green = in-the-money (above strike), Red = out-of-the-money (below strike)
 - **Greeks** — Delta, Gamma, Vega, Theta, Rho via bump-and-reprice
 - **Merton Jump-Diffusion** — Model crash/black swan events with configurable jump parameters
 - **CUDA Streams** — Concurrent portfolio pricing (8 options on 4 streams)
-- **GPU Visualization** — Spaghetti plots and payoff histograms rendered directly on GPU
+- **GPU Visualization** — GPU-simulated path visualization (spaghetti plot); payoff histogram rendered from GPU payoffs after host-side binning
 - **OpenGL Dashboard** — real-time GPU pricing with live price history chart, payoff histogram, Greeks, and convergence tracking (`--gui`)
 - **Interactive Dashboard** — ncurses-based real-time parameter adjustment with ASCII sparklines (`--dashboard`)
 - **CPU Baseline** — Side-by-side comparison with single-threaded CPU implementation

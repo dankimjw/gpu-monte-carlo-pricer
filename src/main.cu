@@ -236,6 +236,19 @@ int main(int argc, char **argv) {
         }
     }
 
+    /* Validate barrier level */
+    if (params.type == OPTION_BARRIER_UP_AND_OUT_CALL && params.barrier <= params.S) {
+        fprintf(stderr, "Error: barrier up-and-out requires barrier > spot (%.2f). Use --barrier.\n",
+                params.S);
+        return 1;
+    }
+    if (params.type == OPTION_BARRIER_DOWN_AND_OUT_CALL &&
+        (params.barrier <= 0.0f || params.barrier >= params.S)) {
+        fprintf(stderr, "Error: barrier down-and-out requires 0 < barrier < spot (%.2f). Use --barrier.\n",
+                params.S);
+        return 1;
+    }
+
     /* Benchmark mode */
     if (benchmark_mode) {
         /* Use a fixed European call for all benchmark runs */
@@ -442,7 +455,8 @@ int main(int argc, char **argv) {
     /* 2. CPU Monte Carlo baseline */
     PricingResult cpu_result = {0};
     if (run_cpu) {
-        int cpu_is_valid = (params.type == OPTION_EUROPEAN_CALL ||
+        int cpu_is_valid = (params.jump_lambda == 0.0f) &&
+                           (params.type == OPTION_EUROPEAN_CALL ||
                             params.type == OPTION_EUROPEAN_PUT);
         if (cpu_is_valid) {
             printf("[CPU Monte Carlo]  (%d paths, %d steps)...\n", num_paths, num_steps);

@@ -299,12 +299,14 @@ void launch_dashboard(OptionParams *params, int num_paths,
     float time_history[MAX_HISTORY];
     int hist_count = 0;
 
-    /* Analytical reference */
+    /* Analytical reference (valid only for pure-GBM European call/put) */
     float bs_price = 0.0f;
-    if (params->type == OPTION_EUROPEAN_CALL)
-        bs_price = bs_call_price(params);
-    else if (params->type == OPTION_EUROPEAN_PUT)
-        bs_price = bs_put_price(params);
+    if (params->jump_lambda == 0.0f) {
+        if (params->type == OPTION_EUROPEAN_CALL)
+            bs_price = bs_call_price(params);
+        else if (params->type == OPTION_EUROPEAN_PUT)
+            bs_price = bs_put_price(params);
+    }
 
     int running = 1;
     int iteration = 0;
@@ -575,9 +577,11 @@ void launch_dashboard(OptionParams *params, int num_paths,
             ch == '+' || ch == '-' || ch == '=' ||
             ch == 'a' || ch == 'A' || ch == 'e' || ch == 'E' ||
             ch == 'd' || ch == 'D') {
-            if (params->type == OPTION_EUROPEAN_CALL)
+            if (params->jump_lambda == 0.0f &&
+                params->type == OPTION_EUROPEAN_CALL)
                 bs_price = bs_call_price(params);
-            else if (params->type == OPTION_EUROPEAN_PUT)
+            else if (params->jump_lambda == 0.0f &&
+                     params->type == OPTION_EUROPEAN_PUT)
                 bs_price = bs_put_price(params);
             else
                 bs_price = 0.0f;
