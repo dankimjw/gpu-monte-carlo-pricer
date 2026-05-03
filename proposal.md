@@ -8,7 +8,7 @@
 
 ## Objective
 
-The goal of this project is to develop a high-performance Monte Carlo simulation engine for pricing financial options using CUDA on an NVIDIA RTX 3060 Ti. The engine will price European and Asian options by simulating millions of random price paths under the Black-Scholes model, serving as a vehicle for applying and benchmarking the GPU programming techniques covered throughout the course (Modules 0–8), including:
+The goal of this project is to develop a high-performance Monte Carlo simulation engine for pricing financial options using CUDA on an NVIDIA RTX 3060 Ti. The engine will price European and Asian options by simulating millions of random price paths under the Black-Scholes model, serving as a vehicle for applying and benchmarking the GPU programming techniques covered throughout the course, including:
 
 - **Thread/block/grid configuration** — Mapping each simulated price path to a CUDA thread, experimenting with 1D block sizes to maximize occupancy on the RTX 3060 Ti (38 SMs, 4864 CUDA cores, compute capability 8.6).
 - **Global memory** — Storing per-path simulated price trajectories and payoff results.

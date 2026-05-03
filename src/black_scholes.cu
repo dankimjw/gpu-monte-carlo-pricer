@@ -32,8 +32,8 @@ float bs_put_price(const OptionParams *params) {
     return bs_call_price(params) - S + K * expf(-r * T);
 }
 
-/* Analytical Greeks for European call */
-void bs_greeks(const OptionParams *params,
+/* Analytical Greeks for European call or put */
+void bs_greeks(const OptionParams *params, OptionType type,
                float *delta, float *gamma, float *vega, float *theta) {
     float S = params->S;
     float K = params->K;
@@ -48,9 +48,20 @@ void bs_greeks(const OptionParams *params,
     /* Standard normal PDF */
     float pdf_d1 = expf(-0.5f * d1 * d1) / sqrtf(2.0f * M_PI);
 
-    if (delta) *delta = norm_cdf(d1);
+    /* Gamma and Vega are identical for call and put */
     if (gamma) *gamma = pdf_d1 / (S * sigma * sqrt_T);
     if (vega)  *vega  = S * pdf_d1 * sqrt_T / 100.0f;  /* per 1% vol move */
-    if (theta) *theta = (-(S * pdf_d1 * sigma) / (2.0f * sqrt_T)
-                         - r * K * expf(-r * T) * norm_cdf(d2)) / 365.0f; /* per day */
+
+    if (type == OPTION_EUROPEAN_PUT) {
+        /* Put: delta = N(d1) - 1 */
+        if (delta) *delta = norm_cdf(d1) - 1.0f;
+        /* Put theta differs from call theta */
+        if (theta) *theta = (-(S * pdf_d1 * sigma) / (2.0f * sqrt_T)
+                             + r * K * expf(-r * T) * norm_cdf(-d2)) / 365.0f;
+    } else {
+        /* Call: delta = N(d1) */
+        if (delta) *delta = norm_cdf(d1);
+        if (theta) *theta = (-(S * pdf_d1 * sigma) / (2.0f * sqrt_T)
+                             - r * K * expf(-r * T) * norm_cdf(d2)) / 365.0f;
+    }
 }

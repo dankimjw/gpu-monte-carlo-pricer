@@ -172,7 +172,7 @@ __global__ void spaghetti_kernel(curandState *states, Pixel *framebuffer,
         for (int iter = 0; iter < dx + dy + 1; iter++) {
             if (cx >= 0 && cx < width && cy >= 0 && cy < height) {
                 int pidx = cy * width + cx;
-                /* Use atomicExch for simple overwrite (last writer wins, fine for visual) */
+                /* Direct write: last-writer-wins (races are benign for visualization) */
                 framebuffer[pidx].r = cr;
                 framebuffer[pidx].g = cg;
                 framebuffer[pidx].b = cb;
@@ -270,7 +270,7 @@ void render_spaghetti_ppm(const OptionParams *params, int num_paths,
 
     /* Initialize RNG */
     mc_set_params(params);
-    curandState *d_states = mc_init_rng(num_paths, block_size);
+    curandState *d_states = mc_init_rng(num_paths, block_size, (unsigned long)time(NULL));
 
     /* Draw paths */
     int path_grid = (num_paths + block_size - 1) / block_size;

@@ -187,7 +187,7 @@ static void run_mc_tick(DashState *st) {
 
     cudaEventRecord(start);
     mc_set_params(&st->params);
-    curandState *d_states = mc_init_rng(st->num_paths, st->block_size);
+    curandState *d_states = mc_init_rng(st->num_paths, st->block_size, (unsigned long)time(NULL));
 
     cudaEventRecord(ks);
     float *d_payoffs = mc_run_simulation(d_states, st->num_paths, st->num_steps, st->block_size);

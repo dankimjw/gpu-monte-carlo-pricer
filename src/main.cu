@@ -72,7 +72,8 @@ static void print_usage(const char *prog) {
     printf("  -s <int>     Number of time steps   (default: %d)\n", DEFAULT_STEPS);
     printf("  -b <int>     CUDA block size         (default: %d)\n", DEFAULT_BLOCK_SIZE);
     printf("  -p           Price put instead of call\n");
-    printf("  --type <str> Option type: european, asian, barrier-uo, barrier-do, digital\n");
+    printf("  --type <str> Option type: european-call, european-put, asian-call, asian-put,\n");
+    printf("               barrier-uo-call, barrier-do-call, digital-call, digital-put\n");
     printf("  --barrier <float>  Barrier level (for barrier options)\n");
     printf("  --greeks     Compute Greeks via bump-and-reprice\n");
     printf("  --jumps <str>  Jump-diffusion preset: btc, crypto, equity, crisis, mild\n");
@@ -85,6 +86,8 @@ static void print_usage(const char *prog) {
     printf("  --dashboard  Launch interactive ncurses terminal dashboard\n");
     printf("  --gui        Launch OpenGL graphical dashboard\n");
     printf("  --preset <str>   Load preset: BTC, ETH, SPY, AAPL, TSLA, NVDA\n");
+    printf("  --seed <int> RNG seed for reproducible results (default: time-based)\n");
+    printf("  --benchmark  Run block-size sweep, path-count sweep, and CPU vs GPU timing\n");
     printf("  --portfolio  Demo: price a sample portfolio using CUDA streams\n");
     printf("  --streams <int>  Number of CUDA streams for portfolio (default: 4)\n");
     printf("  -h           Show this help\n");
@@ -116,6 +119,9 @@ int main(int argc, char **argv) {
     const char *underlying_name = "Custom";
     int dashboard_mode = 0;
     int gui_mode = 0;
+    int benchmark_mode = 0;
+    unsigned long rng_seed = (unsigned long)time(NULL);
+    int seed_set = 0;
 
     /* Parse CLI arguments */
     for (int i = 1; i < argc; i++) {
@@ -141,11 +147,19 @@ int main(int argc, char **argv) {
             run_cpu = 0;
         } else if (strcmp(argv[i], "--type") == 0 && i + 1 < argc) {
             i++;
-            if (strcmp(argv[i], "european") == 0)       params.type = OPTION_EUROPEAN_CALL;
-            else if (strcmp(argv[i], "asian") == 0)     params.type = OPTION_ASIAN_CALL;
-            else if (strcmp(argv[i], "barrier-uo") == 0) params.type = OPTION_BARRIER_UP_AND_OUT_CALL;
-            else if (strcmp(argv[i], "barrier-do") == 0) params.type = OPTION_BARRIER_DOWN_AND_OUT_CALL;
-            else if (strcmp(argv[i], "digital") == 0)   params.type = OPTION_DIGITAL_CALL;
+            if      (strcmp(argv[i], "european") == 0 ||
+                     strcmp(argv[i], "european-call") == 0)  params.type = OPTION_EUROPEAN_CALL;
+            else if (strcmp(argv[i], "european-put") == 0)   params.type = OPTION_EUROPEAN_PUT;
+            else if (strcmp(argv[i], "asian") == 0 ||
+                     strcmp(argv[i], "asian-call") == 0)     params.type = OPTION_ASIAN_CALL;
+            else if (strcmp(argv[i], "asian-put") == 0)      params.type = OPTION_ASIAN_PUT;
+            else if (strcmp(argv[i], "barrier-uo") == 0 ||
+                     strcmp(argv[i], "barrier-uo-call") == 0) params.type = OPTION_BARRIER_UP_AND_OUT_CALL;
+            else if (strcmp(argv[i], "barrier-do") == 0 ||
+                     strcmp(argv[i], "barrier-do-call") == 0) params.type = OPTION_BARRIER_DOWN_AND_OUT_CALL;
+            else if (strcmp(argv[i], "digital") == 0 ||
+                     strcmp(argv[i], "digital-call") == 0)   params.type = OPTION_DIGITAL_CALL;
+            else if (strcmp(argv[i], "digital-put") == 0)    params.type = OPTION_DIGITAL_PUT;
             else { fprintf(stderr, "Unknown type: %s\n", argv[i]); return 1; }
         } else if (strcmp(argv[i], "--barrier") == 0 && i + 1 < argc) {
             params.barrier = atof(argv[++i]);
@@ -207,6 +221,11 @@ int main(int argc, char **argv) {
             visualize = 1;
         } else if (strcmp(argv[i], "--viz-paths") == 0 && i + 1 < argc) {
             viz_paths = atoi(argv[++i]);
+        } else if (strcmp(argv[i], "--seed") == 0 && i + 1 < argc) {
+            rng_seed = (unsigned long)atol(argv[++i]);
+            seed_set = 1;
+        } else if (strcmp(argv[i], "--benchmark") == 0) {
+            benchmark_mode = 1;
         } else if (strcmp(argv[i], "-h") == 0) {
             print_usage(argv[0]);
             return 0;
@@ -215,6 +234,128 @@ int main(int argc, char **argv) {
             print_usage(argv[0]);
             return 1;
         }
+    }
+
+    /* Benchmark mode */
+    if (benchmark_mode) {
+        /* Use a fixed European call for all benchmark runs */
+        OptionParams bp;
+        bp.S = 100.0f; bp.K = 100.0f; bp.r = 0.05f; bp.sigma = 0.20f;
+        bp.T = 1.0f;   bp.barrier = 0.0f; bp.type = OPTION_EUROPEAN_CALL;
+        bp.jump_lambda = 0.0f; bp.jump_mean = 0.0f; bp.jump_vol = 0.0f;
+        float bs_ref = bs_call_price(&bp);
+
+        cudaEvent_t ev0, ev1, ev2, ev3;
+        cudaEventCreate(&ev0); cudaEventCreate(&ev1);
+        cudaEventCreate(&ev2); cudaEventCreate(&ev3);
+
+        /* --- 1. Block-size sweep (1M paths, 252 steps) --- */
+        printf("================================================================\n");
+        printf("  Benchmark: Block-Size Sweep  (1M paths, 252 steps, European Call)\n");
+        printf("================================================================\n");
+        printf("  %-12s %12s %12s %12s %18s\n",
+               "block_size", "kernel(ms)", "total(ms)", "price", "throughput(Mpps)");
+
+        FILE *fp_bs = fopen("output/benchmark_blocksize.csv", "w");
+        if (fp_bs) fprintf(fp_bs, "block_size,kernel_ms,total_ms,price,error_pct,throughput_mpps\n");
+
+        int sweep_bs[] = {32, 64, 128, 256, 512, 1024};
+        int n_sweep_bs = (int)(sizeof(sweep_bs)/sizeof(sweep_bs[0]));
+        mc_set_params(&bp);
+        for (int si = 0; si < n_sweep_bs; si++) {
+            int bsz = sweep_bs[si];
+            cudaEventRecord(ev0);
+            curandState *ds = mc_init_rng(1000000, bsz, 12345UL);
+            cudaEventRecord(ev2);
+            float *dp = mc_run_simulation(ds, 1000000, 252, bsz);
+            cudaEventRecord(ev3); cudaEventSynchronize(ev3);
+            float mn, vr;
+            reduce_payoffs(dp, 1000000, &mn, &vr);
+            cudaEventRecord(ev1); cudaEventSynchronize(ev1);
+            float kms, tms;
+            cudaEventElapsedTime(&kms, ev2, ev3);
+            cudaEventElapsedTime(&tms, ev0, ev1);
+            float price = expf(-bp.r * bp.T) * mn;
+            float tput  = 1000000.0f / (kms / 1000.0f) / 1e6f;
+            float epct  = fabsf(price - bs_ref) / bs_ref * 100.0f;
+            printf("  %-12d %12.2f %12.2f %12.6f %18.2f\n", bsz, kms, tms, price, tput);
+            if (fp_bs) fprintf(fp_bs, "%d,%.2f,%.2f,%.6f,%.4f,%.2f\n",
+                               bsz, kms, tms, price, epct, tput);
+            cudaFree(ds); cudaFree(dp);
+        }
+        if (fp_bs) { fclose(fp_bs); printf("  Saved output/benchmark_blocksize.csv\n"); }
+
+        /* --- 2. Path-count sweep (block=256, 252 steps) --- */
+        printf("\n");
+        printf("================================================================\n");
+        printf("  Benchmark: Path-Count Sweep  (block=256, 252 steps, European Call)\n");
+        printf("================================================================\n");
+        printf("  %-12s %12s %12s %12s %12s\n",
+               "paths", "kernel(ms)", "total(ms)", "price", "error(%)");
+
+        FILE *fp_pc = fopen("output/benchmark_paths.csv", "w");
+        if (fp_pc) fprintf(fp_pc, "num_paths,kernel_ms,total_ms,price,error_pct,std_err\n");
+
+        int sweep_n[] = {1000, 10000, 100000, 1000000, 5000000, 10000000};
+        int n_sweep_n = (int)(sizeof(sweep_n)/sizeof(sweep_n[0]));
+        for (int si = 0; si < n_sweep_n; si++) {
+            int np = sweep_n[si];
+            cudaEventRecord(ev0);
+            curandState *ds = mc_init_rng(np, 256, 12345UL);
+            cudaEventRecord(ev2);
+            float *dp = mc_run_simulation(ds, np, 252, 256);
+            cudaEventRecord(ev3); cudaEventSynchronize(ev3);
+            float mn, vr;
+            reduce_payoffs(dp, np, &mn, &vr);
+            cudaEventRecord(ev1); cudaEventSynchronize(ev1);
+            float kms, tms;
+            cudaEventElapsedTime(&kms, ev2, ev3);
+            cudaEventElapsedTime(&tms, ev0, ev1);
+            float disc = expf(-bp.r * bp.T);
+            float price = disc * mn;
+            float se    = disc * sqrtf(vr / (float)np);
+            float epct  = fabsf(price - bs_ref) / bs_ref * 100.0f;
+            printf("  %-12d %12.2f %12.2f %12.6f %12.4f\n", np, kms, tms, price, epct);
+            if (fp_pc) fprintf(fp_pc, "%d,%.2f,%.2f,%.6f,%.4f,%.6f\n",
+                               np, kms, tms, price, epct, se);
+            cudaFree(ds); cudaFree(dp);
+        }
+        if (fp_pc) { fclose(fp_pc); printf("  Saved output/benchmark_paths.csv\n"); }
+
+        /* --- 3. CPU vs GPU comparison (block=256, 252 steps) --- */
+        printf("\n");
+        printf("================================================================\n");
+        printf("  Benchmark: CPU vs GPU  (block=256, 252 steps, European Call)\n");
+        printf("================================================================\n");
+        printf("  %-12s %12s %12s %12s\n", "paths", "cpu(ms)", "gpu(ms)", "speedup");
+
+        FILE *fp_cg = fopen("output/benchmark_cpu_gpu.csv", "w");
+        if (fp_cg) fprintf(fp_cg, "num_paths,cpu_ms,gpu_total_ms,speedup\n");
+
+        int sweep_cg[] = {10000, 100000, 1000000};
+        int n_sweep_cg = (int)(sizeof(sweep_cg)/sizeof(sweep_cg[0]));
+        for (int si = 0; si < n_sweep_cg; si++) {
+            int np = sweep_cg[si];
+            PricingResult cr = cpu_monte_carlo(&bp, np, 252);
+            cudaEventRecord(ev0);
+            curandState *ds = mc_init_rng(np, 256, 12345UL);
+            float *dp = mc_run_simulation(ds, np, 252, 256);
+            float mn, vr;
+            reduce_payoffs(dp, np, &mn, &vr);
+            cudaEventRecord(ev1); cudaEventSynchronize(ev1);
+            float tms;
+            cudaEventElapsedTime(&tms, ev0, ev1);
+            float speedup = cr.cpu_time_ms / tms;
+            printf("  %-12d %12.2f %12.2f %11.1fx\n", np, cr.cpu_time_ms, tms, speedup);
+            if (fp_cg) fprintf(fp_cg, "%d,%.2f,%.2f,%.1f\n", np, cr.cpu_time_ms, tms, speedup);
+            cudaFree(ds); cudaFree(dp);
+        }
+        if (fp_cg) { fclose(fp_cg); printf("  Saved output/benchmark_cpu_gpu.csv\n"); }
+
+        cudaEventDestroy(ev0); cudaEventDestroy(ev1);
+        cudaEventDestroy(ev2); cudaEventDestroy(ev3);
+        printf("\nBenchmark complete. CSVs saved to output/\n");
+        return 0;
     }
 
     /* Dashboard mode — launch immediately if requested */
@@ -270,38 +411,53 @@ int main(int argc, char **argv) {
     printf("Paths:          %d\n", num_paths);
     printf("Steps/path:     %d\n", num_steps);
     printf("Block size:     %d\n", block_size);
+    printf("RNG Seed:       %lu%s\n", rng_seed, seed_set ? "" : "  (time-based)");
     printf("================================================================\n\n");
 
-    /* 1. Analytical Black-Scholes price */
-    float bs_price;
-    if (params.type == OPTION_EUROPEAN_CALL) {
-        bs_price = bs_call_price(&params);
-    } else {
-        bs_price = bs_put_price(&params);
-    }
+    /* 1. Analytical Black-Scholes price (valid only for pure-GBM European call/put) */
+    int has_bs_reference =
+        (params.jump_lambda == 0.0f) &&
+        (params.type == OPTION_EUROPEAN_CALL || params.type == OPTION_EUROPEAN_PUT);
 
-    float delta, gamma, vega, theta;
-    bs_greeks(&params, &delta, &gamma, &vega, &theta);
+    float bs_price = 0.0f;
+    float delta = 0.0f, gamma = 0.0f, vega = 0.0f, theta = 0.0f;
 
     printf("[Black-Scholes Analytical]\n");
-    printf("  Price:   $%.6f\n", bs_price);
-    printf("  Delta:   %.6f\n", delta);
-    printf("  Gamma:   %.6f\n", gamma);
-    printf("  Vega:    %.6f\n", vega);
-    printf("  Theta:   %.6f\n", theta);
+    if (has_bs_reference) {
+        if (params.type == OPTION_EUROPEAN_CALL)
+            bs_price = bs_call_price(&params);
+        else
+            bs_price = bs_put_price(&params);
+        bs_greeks(&params, params.type, &delta, &gamma, &vega, &theta);
+        printf("  Price:   $%.6f\n", bs_price);
+        printf("  Delta:   %.6f\n", delta);
+        printf("  Gamma:   %.6f\n", gamma);
+        printf("  Vega:    %.6f\n", vega);
+        printf("  Theta:   %.6f\n", theta);
+    } else {
+        printf("  N/A: no closed-form reference for this option type / jump-diffusion mode\n");
+    }
     printf("\n");
 
     /* 2. CPU Monte Carlo baseline */
     PricingResult cpu_result = {0};
     if (run_cpu) {
-        printf("[CPU Monte Carlo]  (%d paths, %d steps)...\n", num_paths, num_steps);
+        int cpu_is_valid = (params.type == OPTION_EUROPEAN_CALL ||
+                            params.type == OPTION_EUROPEAN_PUT);
+        if (cpu_is_valid) {
+            printf("[CPU Monte Carlo]  (%d paths, %d steps)...\n", num_paths, num_steps);
+        } else {
+            printf("[CPU Monte Carlo — European GBM payoff only]  (%d paths, %d steps)...\n",
+                   num_paths, num_steps);
+        }
         cpu_result = cpu_monte_carlo(&params, num_paths, num_steps);
         printf("  Price:   $%.6f\n", cpu_result.price);
         printf("  Std Err: $%.6f\n", cpu_result.std_err);
         printf("  95%% CI:  [$%.6f, $%.6f]\n", cpu_result.ci_low, cpu_result.ci_high);
         printf("  Time:    %.2f ms\n", cpu_result.cpu_time_ms);
-        printf("  Error vs BS: %.4f%%\n",
-               fabsf(cpu_result.price - bs_price) / bs_price * 100.0f);
+        if (has_bs_reference)
+            printf("  Error vs BS: %.4f%%\n",
+                   fabsf(cpu_result.price - bs_price) / bs_price * 100.0f);
         printf("\n");
     }
 
@@ -321,7 +477,7 @@ int main(int argc, char **argv) {
 
     cudaEventRecord(start_total);
 
-    curandState *d_states = mc_init_rng(num_paths, block_size);
+    curandState *d_states = mc_init_rng(num_paths, block_size, rng_seed);
 
     /* Run simulation */
     cudaEventRecord(start_kernel);
@@ -352,8 +508,9 @@ int main(int argc, char **argv) {
     printf("  95%% CI:  [$%.6f, $%.6f]\n", ci_low, ci_high);
     printf("  Kernel:  %.2f ms\n", kernel_ms);
     printf("  Total:   %.2f ms  (includes RNG init + reduction)\n", total_ms);
-    printf("  Error vs BS: %.4f%%\n",
-           fabsf(gpu_price - bs_price) / bs_price * 100.0f);
+    if (has_bs_reference)
+        printf("  Error vs BS: %.4f%%\n",
+               fabsf(gpu_price - bs_price) / bs_price * 100.0f);
 
     if (run_cpu && cpu_result.cpu_time_ms > 0.0f) {
         float speedup = cpu_result.cpu_time_ms / total_ms;
@@ -369,17 +526,26 @@ int main(int argc, char **argv) {
     printf("  SUMMARY\n");
     printf("================================================================\n");
     printf("  %-20s %12s %12s %12s\n", "Method", "Price", "Error vs BS", "Time (ms)");
-    printf("  %-20s %12.6f %11s  %12s\n", "Black-Scholes", bs_price, "-", "-");
-    if (run_cpu) {
-        printf("  %-20s %12.6f %10.4f%%  %12.2f\n", "CPU Monte Carlo",
-               cpu_result.price,
-               fabsf(cpu_result.price - bs_price) / bs_price * 100.0f,
-               cpu_result.cpu_time_ms);
+    if (has_bs_reference) {
+        printf("  %-20s %12.6f %11s  %12s\n", "Black-Scholes", bs_price, "-", "-");
+        if (run_cpu) {
+            printf("  %-20s %12.6f %10.4f%%  %12.2f\n", "CPU Monte Carlo",
+                   cpu_result.price,
+                   fabsf(cpu_result.price - bs_price) / bs_price * 100.0f,
+                   cpu_result.cpu_time_ms);
+        }
+        printf("  %-20s %12.6f %10.4f%%  %12.2f\n", "GPU Monte Carlo",
+               gpu_price,
+               fabsf(gpu_price - bs_price) / bs_price * 100.0f,
+               total_ms);
+    } else {
+        if (run_cpu) {
+            printf("  %-20s %12.6f %12s  %12.2f\n", "CPU Monte Carlo",
+                   cpu_result.price, "N/A", cpu_result.cpu_time_ms);
+        }
+        printf("  %-20s %12.6f %12s  %12.2f\n", "GPU Monte Carlo",
+               gpu_price, "N/A", total_ms);
     }
-    printf("  %-20s %12.6f %10.4f%%  %12.2f\n", "GPU Monte Carlo",
-           gpu_price,
-           fabsf(gpu_price - bs_price) / bs_price * 100.0f,
-           total_ms);
     printf("================================================================\n");
 
     /* 4. Greeks via bump-and-reprice */

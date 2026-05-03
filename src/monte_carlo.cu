@@ -125,12 +125,12 @@ void mc_set_params(const OptionParams *params) {
 }
 
 /* Host function: allocate and initialize cuRAND states */
-curandState* mc_init_rng(int num_paths, int block_size) {
+curandState* mc_init_rng(int num_paths, int block_size, unsigned long seed) {
     curandState *d_states;
     cudaMalloc(&d_states, num_paths * sizeof(curandState));
 
     int grid_size = (num_paths + block_size - 1) / block_size;
-    init_curand_states<<<grid_size, block_size>>>(d_states, time(NULL), num_paths);
+    init_curand_states<<<grid_size, block_size>>>(d_states, seed, num_paths);
     cudaDeviceSynchronize();
 
     return d_states;

@@ -65,7 +65,7 @@ static void draw_box(int row, int col, int width, int height, int color) {
 static float mc_price(const OptionParams *params, int num_paths,
                       int num_steps, int block_size) {
     mc_set_params(params);
-    curandState *d_states = mc_init_rng(num_paths, block_size);
+    curandState *d_states = mc_init_rng(num_paths, block_size, (unsigned long)time(NULL));
     float *d_payoffs = mc_run_simulation(d_states, num_paths, num_steps, block_size);
     float mean_payoff, variance;
     reduce_payoffs(d_payoffs, num_paths, &mean_payoff, &variance);
@@ -160,7 +160,7 @@ static MCResult run_mc_once(const OptionParams *params, int num_paths,
 
     cudaEventRecord(start);
     mc_set_params(params);
-    curandState *d_states = mc_init_rng(num_paths, block_size);
+    curandState *d_states = mc_init_rng(num_paths, block_size, (unsigned long)time(NULL));
 
     cudaEventRecord(ks);
     float *d_payoffs = mc_run_simulation(d_states, num_paths, num_steps, block_size);

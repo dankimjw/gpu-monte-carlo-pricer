@@ -21,7 +21,11 @@ CU_OBJS   = $(patsubst $(SRC_DIR)/%.cu,$(BUILD_DIR)/%.o,$(CU_SRCS))
 CPP_OBJS  = $(patsubst $(SRC_DIR)/%.cpp,$(BUILD_DIR)/%.o,$(CPP_SRCS))
 ALL_OBJS  = $(CU_OBJS) $(CPP_OBJS)
 
-.PHONY: all clean run debug
+TEST_SRC  = tests/test_suite.cu
+TEST_BIN  = tests/run_tests
+TEST_OBJS = $(filter-out $(BUILD_DIR)/main.o, $(ALL_OBJS))
+
+.PHONY: all clean run debug test
 
 all: $(BUILD_DIR) $(BIN)
 
@@ -43,5 +47,13 @@ debug: clean all
 run: all
 	./$(BIN)
 
+$(TEST_BIN): $(TEST_SRC) $(TEST_OBJS)
+	$(NVCC) $(NVCCFLAGS) -o $@ $^ $(LDFLAGS)
+
+test: all $(TEST_BIN)
+	@echo
+	@echo "Running test suite..."
+	@cd $(dir $(TEST_BIN)) && ./$(notdir $(TEST_BIN))
+
 clean:
-	rm -rf $(BUILD_DIR) $(BIN)
+	rm -rf $(BUILD_DIR) $(BIN) $(TEST_BIN)

@@ -102,7 +102,7 @@ make all
 # Option Greeks
 ./mc_pricer --greeks --preset SPY
 
-# Benchmark mode
+# Benchmark mode (block-size sweep, path-count sweep, CPU vs GPU — writes CSVs to output/)
 ./mc_pricer --benchmark
 ```
 
