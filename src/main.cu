@@ -1,7 +1,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>
 #include <math.h>
+#include <time.h>
 #include <cuda_runtime.h>
 #include "../include/option_params.h"
 #include "black_scholes.h"
@@ -452,18 +454,18 @@ int main(int argc, char **argv) {
     }
     printf("\n");
 
-    /* 2. CPU Monte Carlo baseline */
+    /* 2. CPU Monte Carlo baseline (pure-GBM European call/put only) */
     PricingResult cpu_result = {0};
+    int cpu_is_valid = (params.jump_lambda == 0.0f) &&
+                       (params.type == OPTION_EUROPEAN_CALL ||
+                        params.type == OPTION_EUROPEAN_PUT);
+    if (run_cpu && !cpu_is_valid) {
+        printf("[CPU Monte Carlo]\n");
+        printf("  Skipped: CPU baseline only supports pure-GBM European call/put.\n\n");
+        run_cpu = 0;
+    }
     if (run_cpu) {
-        int cpu_is_valid = (params.jump_lambda == 0.0f) &&
-                           (params.type == OPTION_EUROPEAN_CALL ||
-                            params.type == OPTION_EUROPEAN_PUT);
-        if (cpu_is_valid) {
-            printf("[CPU Monte Carlo]  (%d paths, %d steps)...\n", num_paths, num_steps);
-        } else {
-            printf("[CPU Monte Carlo — European GBM payoff only]  (%d paths, %d steps)...\n",
-                   num_paths, num_steps);
-        }
+        printf("[CPU Monte Carlo]  (%d paths, %d steps)...\n", num_paths, num_steps);
         cpu_result = cpu_monte_carlo(&params, num_paths, num_steps);
         printf("  Price:   $%.6f\n", cpu_result.price);
         printf("  Std Err: $%.6f\n", cpu_result.std_err);

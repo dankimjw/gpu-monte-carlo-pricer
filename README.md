@@ -27,8 +27,8 @@ Green = in-the-money (above strike), Red = out-of-the-money (below strike)
 ![Option Payoff Diagrams](output/payoff_diagrams.png)
 
 - **European Call/Put** — Standard vanilla options with payoff at expiry
-- **Asian Call** — Payoff based on average price path (smoother than European)
-- **Digital Call** — Fixed payout if in-the-money at expiry
+- **Asian Call/Put** — Payoff based on average price path (smoother than European)
+- **Digital Call/Put** — Fixed payout if in-the-money (call) or out-of-the-money (put) at expiry
 - **Barrier Up/Down-and-Out** — Option knocked out if price touches barrier
 
 ---

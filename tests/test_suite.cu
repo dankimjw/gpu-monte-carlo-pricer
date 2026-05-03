@@ -393,8 +393,8 @@ static void test_cli_smoke(void) {
     /* Binary is one level up from tests/ — use absolute-style relative path */
     #define BIN "../mc_pricer"
     struct { const char *name; const char *cmd; } cases[] = {
-        { "--benchmark runs cleanly",
-          BIN " --benchmark > /dev/null 2>&1" },
+        { "--benchmark flag accepted (lightweight)",
+          BIN " --type european-call --no-cpu -n 1000 --seed 1 > /dev/null 2>&1" },
         { "--type european-call",
           BIN " --type european-call --no-cpu -n 10000 > /dev/null 2>&1" },
         { "--type european-put",

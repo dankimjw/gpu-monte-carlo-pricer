@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <math.h>
+#include <time.h>
 #include <curand_kernel.h>
 #include <cuda_runtime.h>
 #include "../include/option_params.h"

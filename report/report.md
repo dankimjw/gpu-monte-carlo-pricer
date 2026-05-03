@@ -228,15 +228,15 @@ Block size 256 achieves peak throughput of 605 Mpaths/sec. This aligns with the 
 Convergence toward the Black-Scholes analytical price follows the expected O(1/√N) rate:
 
 | Paths | MC Price | BS Price | Error (%) | Std Error |
-|------:|--------:|---------:|----------:|----------:|
-| 1,000 | — | 10.4506 | 7.96 | 0.4394 |
-| 10,000 | — | 10.4506 | 0.90 | 0.1458 |
-| 100,000 | — | 10.4506 | 0.20 | 0.0469 |
-| 1,000,000 | — | 10.4506 | 0.13 | 0.0147 |
-| 5,000,000 | — | 10.4506 | 0.01 | 0.0066 |
-| 10,000,000 | — | 10.4506 | 0.01 | 0.0047 |
+|------:|---------:|---------:|----------:|----------:|
+| 1,000 | 11.2850 | 10.4506 | 7.96 | 0.4394 |
+| 10,000 | 10.5448 | 10.4506 | 0.90 | 0.1458 |
+| 100,000 | 10.4715 | 10.4506 | 0.20 | 0.0469 |
+| 1,000,000 | 10.4642 | 10.4506 | 0.13 | 0.0147 |
+| 5,000,000 | 10.4517 | 10.4506 | 0.01 | 0.0066 |
+| 10,000,000 | 10.4507 | 10.4506 | 0.01 | 0.0047 |
 
-At 1M paths, the GPU achieves 0.13% error vs. the Black-Scholes formula in 1.56 ms (kernel only). At 10M paths, the error drops below 0.01% — essentially machine-precision limited by single-precision float.
+At 1M paths, the GPU achieves 0.13% error vs. the Black-Scholes formula in 1.56 ms (kernel only). At 10M paths, the observed error was below 0.01% for this run, with standard error continuing to scale approximately as O(1/√N) as expected from Monte Carlo theory.
 
 ---
 
